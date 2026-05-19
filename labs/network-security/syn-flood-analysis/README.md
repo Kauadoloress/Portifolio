@@ -1,0 +1,29 @@
+# Análise de Incidente: Detecção de Ataque SYN Flood (DoS)
+
+## 📝 Visão Geral
+Este laboratório documenta a análise de um arquivo de log de tráfego de rede (`.csv`) capturado via Wireshark/Tcpdump. O objetivo foi identificar e analisar uma anomalia de tráfego direcionada ao servidor web corporativo, simulando a atuação de um Analista de SOC Nível 1 na triagem de incidentes.
+
+## 🕵️‍♂️ Investigação dos Logs
+Ao analisar o arquivo de tráfego, foi possível observar duas fases distintas no comportamento da rede:
+
+### 1. Tráfego Normal (Baseline)
+Nos registros iniciais (ex: linhas 47 a 51), observamos uma comunicação legítima utilizando o **Handshake de 3 Vias do TCP** e o protocolo **HTTP**:
+* **Frame 47:** O cliente (`198.51.100.23`) envia um pacote `[SYN]` para o servidor (`192.0.2.1`) na porta `443`.
+* **Frame 48:** O servidor responde com um `[SYN, ACK]`.
+* **Frame 49:** O cliente finaliza com um `[ACK]`, estabelecendo a conexão.
+* **Frame 50 e 51:** Uma requisição legítima `GET /sales.html HTTP/1.1` é realizada com sucesso (`200 OK`).
+
+### 2. Identificação da Anomalia (O Ataque)
+A partir do **Frame 52** (tempo `3.390692`), um comportamento malicioso é iniciado pelo endereço IP externo `203.0.113.0`.
+* **Padrão Suspeito:** O mesmo IP de origem começa a disparar centenas de pacotes `[SYN]` seguidos em milissegundos para a porta `443` do servidor.
+* **Falta de Resposta:** Não existem pacotes de `[ACK]` de volta por parte do cliente. O atacante envia o pedido de conexão (`SYN`), o servidor reserva memória e responde (`SYN-ACK`), mas o atacante deixa a conexão "pendurada" (half-open).
+* **Objetivo:** Esgotar a tabela de conexões e os recursos de memória do servidor web, impossibilitando que usuários legítimos acessem o site.
+
+## 📊 Evidência Visual (Gráfico de Iogurtes/Pacotes por Tempo)
+O gráfico gerado pelo Wireshark mostra um pico vertical absurdo e constante de pacotes por segundo logo após o início do ataque, confirmando a inundação (Flood).
+
+## 🛡️ Ações de Mitigação Recomendadas (Visão de Defesa)
+Como Analista de SOC, as medidas imediatas e de longo prazo para mitigar este incidente seriam:
+1. **Bloqueio Temporário:** Implementar uma regra de firewall (iptables/NACL) para bloquear o IP de origem do ataque (`203.0.113.0`).
+2. **Ativação de SYN Cookies:** Configurar o sistema operacional do servidor para usar SYN Cookies, evitando o esgotamento da memória com conexões falsas.
+3. **Configuração de Limites de Taxa (Rate Limiting):** Limitar o número de conexões `[SYN]` permitidas por segundo vindas de um mesmo IP.
